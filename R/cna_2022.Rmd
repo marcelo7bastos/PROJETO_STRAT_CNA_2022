@@ -1,0 +1,640 @@
+---
+title: "Consumo Nacional Aparente"
+subtitle: "Estimativa de vendas da produção nacional por código da Nomenclatura Comum do Mercosul – NCM. Estatísticas construídas a partir de Notas Fiscais Eletrônicas. Período 2016-2021."
+version: "V 0.0"
+#author: "Marcelo Bastos"
+date: "`r format(Sys.time(), '%d de %B de %Y')`"
+output: 
+    html_document:
+        highlight: textmate
+        includes:
+          in_header: "cabecalho_nfe" #colocar logo Camex
+        theme: cerulean       
+        number_sections: yes
+        toc: yes
+        toc_float:
+            collapsed: yes
+            
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+getwd()
+```
+
+Bibliotecas utilizadas
+```{r carregamento de librarys, message = FALSE, warning = FALSE}
+
+# install.packages("dplyr")
+# install.packages("rmarkdown")
+# install.packages("knitr") # definir para que server!
+# install.packages("kableExtra")
+# install.packages("readxl")
+# install.packages("writexl")
+# install.packages("GetBCBData") # dados de câmbio e inflação do Bacen
+# install.packages("janitor") #disponibiliza algumas funções para limpar bases de dados
+# #install.packages("arrow") # #verificar se há interesse velocidade de processamento - https://arrow.apache.org/docs/r/index.html
+# install.packages("tictoc") # medição de tempo de processamento
+
+# carrega o pacote
+library(dplyr)
+library(readr)
+library(rmarkdown)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+library(readxl)
+library(stringr)
+library(writexl)
+library(GetBCBData) # CRAN v0.6 - usado para carregar dados sobre Câmbio
+library(data.table) # ler csv mais rápido
+library(janitor) #disponibiliza algumas funções para limpar bases de dados
+#library(arrow) # velocidade de processamento
+library(tictoc) # medição de tempo de processamento
+```
+
+# RESUMO
+* **Assunto:** Desenvolvimento de metodologia para estimar as vendas da produção nacional por código da Nomenclatura Comum do Mercosul – NCM a partir de estatísticas construídas utilizando Notas Fiscais Eletrônicas e apresentação dos resultados.
+* **Objetivo:** Aperfeiçoar os mecanismos de análises sobre assuntos de Comércio Internacional desenvolvendo ferramental necessário para subsidiar de informações os servidores que realizam tais análises.
+* **Processos SEI:** 
+>> RETIRAR O LINK DO SEI
+
+    + [19960.100242/2019-91](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023883&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=c8a438bf6eae77a5ca7f6ace7e88259dacb165fd64a3c114681f3e755dbefccb) - antigo
+    +  [19960.100187/2019-39](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=2547427&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=bd3f58ff0a8abd4ceeb6ad5ff9ac477ac729e13f060f7c4227db039a09f6a59f) - novo
+* **Referências:** 
+    +  [Nota Técnica SEI nº 2/2019/ASTEC/SECINT-ME](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023883&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=c8a438bf6eae77a5ca7f6ace7e88259dacb165fd64a3c114681f3e755dbefccb) 
+    +  [Nota Técnica SEI nº 56271/2021/ME](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023721&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=8b230b253671c3a3d473b30984ee02054d94a136c37383b0e6b76a75e38767f2)
+    
+Na póxima parte do trabalho, será detalhado o desenvolvimento realizado em cada etapa.
+
+# ETAPAS
+^`versão 0.1 - planejamento`^
+
+O trabalho está dividido em 3 etapas, iniciando pela (1) carga e tratamento dos dados (2) união dos dados e, por fim, (3) a apresentação dos resultados.
+
+Cada uma das etapas será realizada considerando os seguintes grandes grupos de dados:
+
+1. **Produção:** Vendas dos Bens produzidos na Economia Nacional, ou seja, valor das vendas de bens produzidos na economia nacional, conforme a metodologia apresentada nessa Nota Técnica.
+
+
+1. **Exportações:** Estimadores de Exportação de Bens Produzidos, ou seja, em reais correntes, considerados os dados das notas fiscais conforme lista de CFOP de exportação construída, também anexa.
+
+
+1. **Importações:** Estimadores de Importações, ou seja, (...) dados do sistema Comex Stat.
+    i. **Câmbio:** Os dólares foram convertidos a reais correntes, por valor médio para cada ano.
+
+1. **Ajuste por IPCA:** Atualização monetária dos dados a fim de aprimorar a análise do Consumo Nacional Aparente.
+
+Por fim, objetivando organizaar o desenvolvimento do trabalho, o processo de desenvolvimento da análise contará algumas versões realizadas num processo de melhoria contínua e entregas regulares. Assim, em cada tópico é possível visualizar em que versão o trabalho será desenvolvido.
+
+# Carga e tratamento dos dados
+^`versão 0.1 - planejamento`^
+
+## Carga e tratamento dos dados PRODUÇÃO
+^`versão 0.2 - dados de produção`^
+
+### Carga dos dados de Produção
+Para os dados de produção, ou melhor, de `Vendas dos Bens produzidos na Economia Nacional`, é necessário:
+1. Importação das Tabelas NFEs disponibilizadas em 2022;
+1. Importação de tabela com lista de CFOPs marcados para exclusão para evitar dupla contagem.
+
+#### A seguir, são apresentados os algoritmos utilizados para importar tabela com NFes e CFOPs
+##### Importação das Tabelas NFEs disponibilizadas em 2022
+
+Carga e empilhamento das tabelas contendo NFes.
+```{r carregamento tabelas nfe disponibilizadas em 2022, message = FALSE, warning = FALSE}
+tic()
+# dados da NFe oriundos da Receita Federal
+arquivos <- c("../data_raw_2022/soliciti_9992_secint_2016.csv",
+              "../data_raw_2022/soliciti_9992_secint_2017.csv",
+              "../data_raw_2022/soliciti_9992_secint_2018.csv",
+              "../data_raw_2022/soliciti_9992_secint_2019.csv",
+              "../data_raw_2022/soliciti_9992_secint_2020.csv",
+              "../data_raw_2022/soliciti_9992_secint_2021.csv")
+
+# novo dataframe e importação dos dados
+df_NFe_2022_raw <- data_frame()
+
+for (i in arquivos) {
+    df_NFe_2022_raw <- rbind(df_NFe_2022_raw,readr::read_csv2(i))
+}
+
+# Converter para formato tibble
+df_NFe_2022_raw <- df_NFe_2022_raw %>%
+  janitor::clean_names() %>%
+  tibble::as_tibble()
+
+# Salva arquivo com dados brutos 
+save(df_NFe_2022_raw, file = "../data_transf_2022/df_NFe_2022_raw.Rda")
+
+# Exportando tabela com resultado dos dados - Não foi possível executar essa linha por limitação do excel.
+# write_xlsx(df_NFe_2022_raw,"data_excel_2022/df_NFe_2022_raw.xlsx")
+
+# Remove arquivo da memória
+remove(df_NFe_2022_raw, arquivos, i)
+toc()
+```
+
+##### Importação da tabela Lista de CFOP de interesse 2021
+Carga da tabela contendo CFOP e indicações CFOps a serem excluídas e utilizadas nas contabilização das exportações.
+```{r importacao cfop}
+
+# CFOP de lista de interesse de 2021
+df_NFe_cfop_lista_interesse_raw <- read_excel("../data_raw_2022/Lista_de_CFOP_de_interesse___2021.xlsx", 
+    range = "A1:D52")
+
+# Converter para formato tibble
+df_NFe_cfop_lista_interesse_raw <- df_NFe_cfop_lista_interesse_raw %>%
+  janitor::clean_names() %>%
+  tibble::as_tibble()
+  
+
+# Salva arquivo com dados brutos
+save(df_NFe_cfop_lista_interesse_raw, file = "../data_transf_2022/df_NFe_cfop_lista_interesse_raw.Rda")
+
+# Remove tabelas
+remove(df_NFe_cfop_lista_interesse_raw)
+```
+
+
+### Tratamento dos dados de Produção
+#### Tratamentos na tabela de NFes
+
+O primeiro tratamento realizado é a união das NCMs inválidas sob uma única NCM "00000000". Assim é possível manter o histórico de NCMs inválidas sem poluir a análise dos dados.
+```{r marcacao ncm invalidas}
+# Carregar dados de intresse
+lista_ncm_validas <- read_excel("../data_raw_2022/Lista_NCM_Validas.xlsx")
+load("../data_transf_2022/df_NFe_2022_raw.Rda")
+
+# RETIRAR??? # Altera tipo de variável
+# lista_ncm_validas <- lista_ncm_validas %>%
+#   #mutate(ncm = as.integer(ncm))
+
+# União das tabelas df_NFe_2022_raw e lista_ncm_validas
+df_NFe_2022_ncm_valida_1trans <- left_join(df_NFe_2022_raw,
+                             lista_ncm_validas,
+                             by = "ncm")
+
+# separação de linhas com ncms válidas
+df_NFe_2022_ncm_valida  <-  df_NFe_2022_ncm_valida_1trans %>% 
+                              filter(!is.na(valida)) %>%
+                              select(!valida)
+
+# separação e alteração de ncms invalidas
+df_NFe_2022_ncm_invalida <-  df_NFe_2022_ncm_valida_1trans %>% 
+                              filter(is.na(valida))%>% 
+                              mutate(ncm = "00000000") %>% 
+                              select(!valida)
+
+# empilhamento das tabelas resultantes
+df_NFe_2022_ncm_valida_1trans <- rbind(df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida)
+
+# Salva arquivo com dados brutos 
+save(df_NFe_2022_ncm_valida_1trans, file = "../data_transf_2022/df_NFe_2022_ncm_valida_1trans.Rda")
+
+# Remove tabelas
+remove(lista_ncm_validas, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida)
+```
+
+
+##########Parei a revisão aqui!!!
+Em seguida, passasse ao tratamento dos dados da NFe para posterior consumo pelos painéis e analistas.
+```{r tratamento dados de producao}
+
+#Carregar dados de intresse
+load("data_raw_2022/df_NFe_2022_raw.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_producao_transf <- data_frame()
+
+# Adiciona zeros a esquerda ate completar oito caracteres na cfop
+df_NFe_producao_transf <- df_NFe_2022_raw %>%
+  mutate( ncm = str_pad(string = ncm,
+        width = 8,
+        side = "left",
+        pad = "0")) %>%
+  mutate( cfop = str_pad(string = cfop,
+        width = 4,
+        side = "left",
+        pad = "0")) %>% 
+  mutate( ano = as.double(ano),
+          mes = as.double(mes),
+          ncm = as.factor(ncm),
+          cfop = as.factor(cfop),
+          qtd_emit = as.integer(qtd_emit),
+          soma_valor_total_bruto_prod_serv = as.double(soma_valor_total_bruto_prod_serv),
+          soma_qtd_tributavel = as.double(soma_qtd_tributavel)) %>%
+  mutate(ano_mes = as.Date(paste0(ano, "-", mes, "-", "01")))
+
+
+# Salva arquivo com dados transformados 
+save(df_NFe_producao_transf, file = "data_transf_2022/df_NFe_producao_transf.Rda")
+
+# Remove tabelas
+remove(df_NFe_2022_raw,df_NFe_producao_transf)
+```
+
+#### Tratamento dos dados de CFOP para união com os dados da NFes
+```{r tratamento dados de cfop}
+#Carregar dados de intresse
+load("data_raw_2022/df_NFe_cfop_lista_interesse_raw.Rda")
+
+# Lista com campos originais da tabela df_NFe_cfop_lista_interesse_raw
+# df_NFe_cfop_lista_interesse_raw$CFOP
+# df_NFe_cfop_lista_interesse_raw$`DESCRIÇÃO_CFOP - Estimadores da Produção - lista da extração`
+# df_NFe_cfop_lista_interesse_raw$Excluir
+# df_NFe_cfop_lista_interesse_raw$`Estimador de Exportação`
+
+# novo dataframe e importação dos dados
+df_NFe_cfop_lista_interesse_tranf <- data_frame()
+
+# Renomeia dados e verificar qtd caracteres em cfop
+df_NFe_cfop_lista_interesse_tranf <- df_NFe_cfop_lista_interesse_raw %>%
+  rename("cfop" = "CFOP",
+         "descricao_cfop" = "DESCRIÇÃO_CFOP - Estimadores da Produção - lista da extração",
+         "excluir" = "Excluir",
+         "estimador_exportacao" = "Estimador de Exportação") %>%
+  mutate(cfop = str_pad(string = cfop,
+        width = 4,
+        side = "left",
+        pad = "0")) %>%
+  mutate("cfop" = as.factor(cfop),
+         "excluir" = as.factor(excluir),
+         "estimador_exportacao" = as.factor(estimador_exportacao))
+
+# Salva arquivo com dados transformados
+save(df_NFe_cfop_lista_interesse_tranf, file = "data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
+
+# Remove tabelas
+remove(df_NFe_cfop_lista_interesse_raw, df_NFe_cfop_lista_interesse_tranf)
+```
+
+### União dos dados da NFes com os dados de CFOP e exclusão de CFOPs 
+A primeira tarefa é a união dos dados de NFes com os de CFOP. Em seguida, serãos excluídas as linhas cujos CFOPs representam dupla contagem.
+O final desse processo, a tabela resultante conterá apenas as informações necessárias para a construção das tabelas de Produção e Exportação (a ser trabalhada na próxima etapa).
+
+#### União dos dados da NFes com os dados de CFOP
+```{r unindo dados NFE e CFOP}
+
+#Carregar dados de intresse
+load("data_transf_2022/df_NFe_producao_transf.Rda")
+load("data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_producao_cfop_union <- data_frame()
+
+# União das tabelas
+df_NFe_producao_cfop_union <- left_join(df_NFe_producao_transf,
+                                         df_NFe_cfop_lista_interesse_tranf,
+                                         by = "cfop")
+
+# Salva arquivo com dados transformados
+save(df_NFe_producao_cfop_union, file = "data_transf_2022/df_NFe_producao_cfop_union.Rda")
+
+# Remove tabelas
+remove(df_NFe_producao_transf, df_NFe_cfop_lista_interesse_tranf, df_NFe_producao_cfop_union)
+```
+
+#### Exclusão de CFOPs e finalização do tratamento dos dados da NFes
+
+```{r}
+
+#Carregar dados de intresse
+load("data_transf_2022/df_NFe_producao_cfop_union.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_producao_cfop_ready <- data_frame()
+
+# filtar CFOPs a serrem excluídas
+df_NFe_producao_cfop_ready <- df_NFe_producao_cfop_union %>%
+                                filter(excluir == "Não") %>%
+                                select(!excluir)
+
+# Salva arquivo com dados transformados
+save(df_NFe_producao_cfop_ready, file = "data_ready_2022/df_NFe_producao_cfop_ready.Rda")
+
+# Remove tabelas
+remove(df_NFe_producao_cfop_union, df_NFe_producao_cfop_ready)
+```
+
+
+## Carga e tratamento de dados de Exportações
+^`versão 0.3 - dados de exportação`^
+
+1. Para os dados de exportação, será utilizada a classificação definida no arquivo "Lista_de_CFOP_de_interesse___2021.xlsx" que contem a coluna "estimador_exportacao". 
+Para essa parte do trabalho, será aproveitada a tabela "df_NFe_producao_cfop_union.Rda" que já contem essa informação devidamente organizada. Assim sendo, será realizado apenas o processo de tratamento dos dados. 
+
+>> Detalhar o porquê da escolha de cada CFOP...
+
+
+### Tratamento dos dados de Exportação
+
+```{r}
+#Carregar dados de intresse
+load("data_transf_2022/df_NFe_producao_cfop_union.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_export_ready <- data_frame()
+
+# filtar CFOPs a serrem excluídas
+df_NFe_export_ready <- df_NFe_producao_cfop_union %>%
+                                filter(estimador_exportacao == "Sim") %>%
+                                select(!excluir & !estimador_exportacao) %>%
+                                rename("soma_qtd_emt_export" = "qtd_emit",
+                                       "soma_valor_total_export" = "soma_valor_total_bruto_prod_serv",
+                                       "soma_qtd_tributavel_export" = "soma_qtd_tributavel")
+
+# Salva arquivo com dados transformados
+save(df_NFe_export_ready, file = "data_ready_2022/df_NFe_export_ready.Rda")
+
+# Remove tabelas
+remove(df_NFe_producao_cfop_union, df_NFe_export_ready)
+```
+
+
+## Carga e tratamento de dados de Importação
+^`versão 0.4 - dados de importação`^
+Os dados de importação são originários [Estatísticas de Comércio Exterior em Dados Abertos](https://www.gov.br/produtividade-e-comercio-exterior/pt-br/assuntos/comercio-exterior/estatisticas/base-de-dados-bruta) e foram acessados em 25/08/2022.
+
+### Carga dos dados de Importação
+```{r}
+
+# novo dataframe e importação dos dados
+df_importacao_raw_1997_2022 <- fread("data_raw_2022/IMP_COMPLETA.csv") %>%
+  janitor::clean_names() %>%
+  tibble::as_tibble()
+
+# remover anos desnecessários, ficando com os anos de 2016 a 2021
+df_importacao_raw_2016_2021 <- filter(df_importacao_raw_1997_2022, co_ano >= 2016 & co_ano <= 2021)
+
+# Salva arquivo com dados brutos 
+save(df_importacao_raw_1997_2022, file = "data_raw_2022/df_importacao_raw_1997_2022.Rda")
+save(df_importacao_raw_2016_2021, file = "data_raw_2022/df_importacao_raw_2016_2021.Rda")
+
+# Exportando tabela com resultado dos dados - Não foi possível executar essa linha por limitação do excel.
+# write_xlsx(df_NFe_2022_raw,"data_excel_2022/df_NFe_2022_raw.xlsx")
+
+# Remove arquivo da memória
+remove(df_importacao_raw_1997_2022, df_importacao_raw_2016_2021)
+```
+
+
+#### Carga de dados de Câmbio
+Para a conversão dos valores de importação para o real, utilizou-se a ["Taxa de câmbio - Livre - Dólar americano (venda) - Média de período - mensal"](https://www3.bcb.gov.br/sgspub/localizarseries/localizarSeries.do?method=prepararTelaLocalizarSeries)
+
+"A partir de 1 de julho de 2011 (Circular 3506, de 23.9.2010), a Ptax passou a corresponder à média aritmética das taxas obtidas em quatro consultas diárias aos dealers de câmbio e refletem a taxa negociada no momento de abertura da janela de consulta; o boletim de fechamento PTAX corresponde à média aritmética das taxas dos boletins do dia. As paridades das outras moedas contra o dólar americano (USD), são obtidas junto a agências de informação." [(Fonte: BCB)](https://dadosabertos.bcb.gov.br/dataset/taxas-de-cambio-todos-os-boletins-diarios)
+
+
+[repositório cran do pacote GetBCBData](https://CRAN.R-project.org/package=GetBCBData)
+
+O número da série temporal pode ser pesquisado [aqui](https://www3.bcb.gov.br/sgspub/localizarseries/localizarSeries.do?method=prepararTelaLocalizarSeries) 
+
+
+Colocar a pesquisa sobre "IPCA" = 433
+
+```{r cambio e ipca}
+# novo dataframe e importação dos dados
+df_dolar_ipca_mensal_raw <- GetBCBData::gbcbd_get_series(
+  id = c("Dólar" = 3698, "IPCA" = 433),
+  first.date = "2016-01-01",
+  last.date = "2021-12-01",
+  format.data = "wide")%>%
+  janitor::clean_names() %>%
+  tibble::as_tibble()
+
+# Converter para formato tibble
+df_dolar_ipca_mensal_raw <- as_tibble(df_dolar_ipca_mensal_raw)
+
+# Salva arquivo com dados brutos 
+save(df_dolar_ipca_mensal_raw, file = "data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
+
+# Exportando tabela com resultado dos dados
+write_xlsx(df_dolar_ipca_mensal_raw,"data_excel_2022/df_dolar_ipca_mensal_raw.xlsx")
+
+# Remove arquivo da memória
+remove(df_dolar_ipca_mensal_raw)
+```
+
+######################################################################################## 
+### Tratamento dos dados de Importação
+
+Conversão dos tipos de variável e formatações básicas
+```{r}
+# Carregar dados de intresse
+load("data_raw_2022/df_importacao_raw_2016_2021.Rda")
+
+# Adiciona zeros a esquerda ate completar oito caracteres na ncm
+df_importacao_transf_2016_2021<- df_importacao_raw_2016_2021 %>%
+  mutate( co_ncm = str_pad(string = co_ncm,
+        width = 8,
+        side = "left",
+        pad = "0")) %>%
+  mutate( co_ano = as.double(co_ano),
+          co_mes = as.double(co_mes),
+          co_ncm = as.factor(co_ncm),
+          co_unid = as.factor(co_unid),
+          co_pais = as.factor(co_pais),
+          sg_uf_ncm = as.factor(sg_uf_ncm),
+          co_via = as.factor(co_via),
+          co_urf = as.factor(co_urf),
+          qt_estat = as.double(qt_estat),
+          kg_liquido = as.double(kg_liquido),
+          vl_fob = as.double(vl_fob),
+          vl_frete = as.double(vl_frete),
+          vl_seguro = as.double(vl_seguro)) %>%
+  mutate(ano_mes = as.Date(paste0(co_ano, "-", co_mes, "-", "01"))) %>%
+  mutate(vl_cif = vl_fob + vl_frete + vl_seguro)
+
+# Salva arquivo com dados transformados 
+save(df_importacao_transf_2016_2021, file = "data_transf_2022/df_importacao_transf_2016_2021.Rda")
+
+# Remove tabelas
+remove(df_importacao_raw_2016_2021,df_importacao_transf_2016_2021)
+```
+
+Acrescenta a conversão do Dólar para o Real
+```{r}
+# Carregar dados de intresse
+load("data_transf_2022/df_importacao_transf_2016_2021.Rda")
+load("data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
+
+# retirando dados de ipca
+df_dolar_media_mensal_raw <- dplyr::select(df_dolar_ipca_mensal_raw, !c(ipca))
+
+                                           
+                                           
+# União das tabelas df_NFe_2022_raw e lista_ncm_validas
+df_importacao_transf_REAL_2016_2021 <- left_join(df_importacao_transf_2016_2021,
+                             df_dolar_media_mensal_raw,
+                             by = c("ano_mes" = "ref_date"))
+
+# Converte valores em dolar para real
+#df_importacao_transf_REAL_2016_2021$dolar
+df_importacao_transf_REAL_2016_2021 <- df_importacao_transf_REAL_2016_2021 %>%
+  mutate( vl_fob_real    = vl_fob * dolar,
+          vl_frete_real  = vl_frete * dolar,
+          vl_seguro_real = vl_seguro * dolar,
+          vl_cif_real    = vl_cif * dolar)
+
+# Salva arquivo com dados transformados 
+save(df_importacao_transf_REAL_2016_2021, file = "data_transf_2022/df_importacao_transf_REAL_2016_2021")
+
+# Remove tabelas
+remove(df_dolar_ipca_mensal_raw, 
+       df_dolar_media_mensal_raw,
+       df_importacao_transf_2016_2021, 
+       df_importacao_transf_REAL_2016_2021)
+```
+
+
+
+
+
+## Carga e Tratamento dos dados Auxiliáres
+
+### Carga e Tratamento dos dados de Câmbio
+^`versão 0.4 - dados de importação`^
+
+#### Carga dos dados de Câmbio
+Carga de dados de Câmbio
+#### Tratamento dos dados de Câmbio
+
+### Carga e Tratamento dos dados de IPCA
+^`versão 1.1 - evolução na análise`^
+
+#### Carga dos dados de IPCA
+Carga de dados de IPCA
+#### Tratamento dos dados de IPCA
+
+
+# União das Tabelas Resultantes
+^`versão 0.5 - união dos dados`^
+
+# Resultados Alcançados
+## Informações sobre a Produção Nacional
+^`versão 0.2 - dados de produção`^
+
+A planilha excel resultante da análise de Produção Nacional está denominada como Produção Nacnional e encontra-se na [pasta compartilha](https://mtegovbr-my.sharepoint.com/:f:/g/personal/marcelo_bastos_economia_gov_br/EmxnBFpG3jxGjQs7YQHGj8MBtVFJSGJh88fmks6cnJutNA?e=ucJpRE).
+
+```{r agrupamento dados producao por NCM}
+
+#Carregar dados de intresse
+load("data_ready_2022/df_NFe_producao_cfop_ready.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_producao_group_NCM <- data_frame()
+
+# Agrupamento e sumarização dos dados de produção
+df_NFe_producao_group_NCM <- df_NFe_producao_cfop_ready %>% 
+  select(!mes & !cfop & !ano_mes & !descricao_cfop & !estimador_exportacao) %>%
+  group_by(ncm, ano) %>%
+  summarise(sum_qtd_emt = sum(qtd_emit),
+            sum_soma_valor_total_bruto_prod_serv = sum(soma_valor_total_bruto_prod_serv),
+            sum_soma_qtd_tributavel = sum(soma_qtd_tributavel))
+  
+# Cálculo do Preço Médio >>NÃO CONSEGUI TRANFORMAR O PREÇO MÉDIO EM NUMÉRICO<<<
+df_NFe_producao_group_NCM <- df_NFe_producao_group_NCM %>%
+  mutate(preco_medio = sum_soma_valor_total_bruto_prod_serv / sum_soma_qtd_tributavel) #%>%
+  #mutate(preco_medio = (format(round(preco_medio, 2), nsmall = 2, decimal.mark = ","))) %>%
+  
+
+# Renomear colunas para apresentar
+df_NFe_producao_group_NCM <- df_NFe_producao_group_NCM %>%
+  rename("NCM" = "ncm",
+         "Ano" = "ano",
+         "Qtde Emitida" = "sum_qtd_emt",
+         "Valor Total Bruto de Produção e Serviço" = "sum_soma_valor_total_bruto_prod_serv",
+         "Qtde Tributável" = "sum_soma_qtd_tributavel",
+         "Preço Médio" = "preco_medio")
+
+
+# Salva arquivo com dados brutos 
+save(df_NFe_producao_group_NCM, file = "data_ready_2022/df_NFe_producao_group_NCM.Rda")
+
+# Exportando tabela com resultado dos dados
+write_xlsx(df_NFe_producao_group_NCM,"data_excel_2022/df_NFe_producao_group_NCM_v02.xlsx")
+
+# Remove arquivo da memória
+remove(df_NFe_producao_cfop_ready, df_NFe_producao_group_NCM)
+```
+
+
+
+## Informações sobre a Exportação Nacional
+^`versão 0.3 - dados de exportação`^
+
+```{r}
+#Carregar dados de intresse
+load("data_ready_2022/df_NFe_export_ready.Rda")
+
+# novo dataframe e importação dos dados
+df_NFe_export_presentation <- data_frame()
+
+# Agrupamento e sumarização dos dados de exportação
+df_NFe_export_presentation <- df_NFe_export_ready %>% 
+  select(!mes & !cfop & !ano_mes & !descricao_cfop) %>%
+  group_by(ncm, ano) %>%
+  summarise(sum_qtd_emt = sum(soma_qtd_emt_export),
+            sum_soma_valor_total_bruto_prod_serv = sum(soma_valor_total_export),
+            sum_soma_qtd_tributavel = sum(soma_qtd_tributavel_export))
+  
+# Cálculo do Preço Médio >>NÃO CONSEGUI TRANFORMAR O PREÇO MÉDIO EM NUMÉRICO<<<
+df_NFe_export_presentation <- df_NFe_export_presentation %>%
+  mutate(preco_medio = sum_soma_valor_total_bruto_prod_serv / sum_soma_qtd_tributavel) #%>%
+  #mutate(preco_medio = (format(round(preco_medio, 2), nsmall = 2, decimal.mark = ","))) %>%
+  
+
+# Renomear colunas para apresentar
+df_NFe_export_presentation <- df_NFe_export_presentation %>%
+  rename("NCM" = "ncm",
+         "Ano" = "ano",
+         "Qtde Emitida Exportada" = "sum_qtd_emt",
+         "Valor Total Bruto Exportado" = "sum_soma_valor_total_bruto_prod_serv",
+         "Qtde Tributável Exportada" = "sum_soma_qtd_tributavel",
+         "Preço Médio Exportação" = "preco_medio")
+
+
+# Salva arquivo com dados brutos 
+save(df_NFe_export_presentation, file = "data_ready_2022/df_NFe_export_presentation.Rda")
+
+# Exportando tabela com resultado dos dados
+write_xlsx(df_NFe_export_presentation,"data_excel_2022/df_NFe_export_presentation_v03.xlsx")
+
+# Remove arquivo da memória
+remove(df_NFe_export_ready, df_NFe_export_presentation)
+```
+
+
+## Informações sobre a Importação Nacional
+^`versão 0.4 - dados de importação`^
+
+## Informações sobre os dados auxiliares - Câmbio e IPCA
+^`versão 0.2 - dados de produção`^
+^`versão 1.1 - evolução na análise`^
+
+## Informações resultantes da união das tabelas
+^`versão 1.0 - evolução na análise`^
+
+# Evoluções na análise
+## Agregação de dados de inflacionários
+^`versão 1.1 - evolução na análise`^
+
+## Painel para consulta por NCM
+^`versão 2.0 - painel de consulta`^
+
+## Dicionário de dados
+
+### Dicionário de dados bruto
+### Dicionário de dados "limpo"
+
+
+
+
+
+
+
+
+
+
+
+
