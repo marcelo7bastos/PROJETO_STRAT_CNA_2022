@@ -193,7 +193,7 @@ df_NFe_2022_ncm_valida_1trans <- rbind(df_NFe_2022_ncm_valida,df_NFe_2022_ncm_in
 save(df_NFe_2022_ncm_valida_1trans, file = "../data_transf_2022/df_NFe_2022_ncm_valida_1trans.Rda")
 
 # Remove tabelas
-remove(lista_ncm_validas, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida)
+remove(lista_ncm_validas, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida, df_NFe_2022_raw)
 ```
 
 
