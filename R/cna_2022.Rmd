@@ -8,7 +8,7 @@ output:
     html_document:
         highlight: textmate
         includes:
-          in_header: "cabecalho_nfe" #colocar logo Camex
+          in_header: "../img/cabecalho_nfe" #colocar logo Camex
         theme: cerulean       
         number_sections: yes
         toc: yes
@@ -59,13 +59,11 @@ library(tictoc) # medição de tempo de processamento
 * **Assunto:** Desenvolvimento de metodologia para estimar as vendas da produção nacional por código da Nomenclatura Comum do Mercosul – NCM a partir de estatísticas construídas utilizando Notas Fiscais Eletrônicas e apresentação dos resultados.
 * **Objetivo:** Aperfeiçoar os mecanismos de análises sobre assuntos de Comércio Internacional desenvolvendo ferramental necessário para subsidiar de informações os servidores que realizam tais análises.
 * **Processos SEI:** 
->> RETIRAR O LINK DO SEI
-
-    + [19960.100242/2019-91](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023883&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=c8a438bf6eae77a5ca7f6ace7e88259dacb165fd64a3c114681f3e755dbefccb) - antigo
-    +  [19960.100187/2019-39](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=2547427&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=bd3f58ff0a8abd4ceeb6ad5ff9ac477ac729e13f060f7c4227db039a09f6a59f) - novo
+    + 19960.100242/2019-91 - antigo
+    + 19960.100187/2019-39 - novo
 * **Referências:** 
-    +  [Nota Técnica SEI nº 2/2019/ASTEC/SECINT-ME](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023883&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=c8a438bf6eae77a5ca7f6ace7e88259dacb165fd64a3c114681f3e755dbefccb) 
-    +  [Nota Técnica SEI nº 56271/2021/ME](https://sei.economia.gov.br/sei/controlador.php?acao=procedimento_trabalhar&acao_origem=protocolo_pesquisa_rapida&id_protocolo=3023721&infra_sistema=100000100&infra_unidade_atual=110002797&infra_hash=8b230b253671c3a3d473b30984ee02054d94a136c37383b0e6b76a75e38767f2)
+    + Nota Técnica SEI nº 2/2019/ASTEC/SECINT-ME
+    + Nota Técnica SEI nº 56271/2021/ME
     
 Na póxima parte do trabalho, será detalhado o desenvolvimento realizado em cada etapa.
 
@@ -199,18 +197,14 @@ remove(lista_ncm_validas, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,
 ```
 
 
-##########Parei a revisão aqui!!!
 Em seguida, passasse ao tratamento dos dados da NFe para posterior consumo pelos painéis e analistas.
 ```{r tratamento dados de producao}
 
 #Carregar dados de intresse
-load("data_raw_2022/df_NFe_2022_raw.Rda")
+load("../data_transf_2022/df_NFe_2022_ncm_valida_1trans.Rda")
 
-# novo dataframe e importação dos dados
-df_NFe_producao_transf <- data_frame()
-
-# Adiciona zeros a esquerda ate completar oito caracteres na cfop
-df_NFe_producao_transf <- df_NFe_2022_raw %>%
+# Novo dataframe e Adiciona zeros a esquerda ate completar oito caracteres na cfop
+df_NFe_2022_ncm_valida_2trans <- df_NFe_2022_ncm_valida_1trans %>%
   mutate( ncm = str_pad(string = ncm,
         width = 8,
         side = "left",
@@ -230,42 +224,30 @@ df_NFe_producao_transf <- df_NFe_2022_raw %>%
 
 
 # Salva arquivo com dados transformados 
-save(df_NFe_producao_transf, file = "data_transf_2022/df_NFe_producao_transf.Rda")
+save(df_NFe_2022_ncm_valida_2trans, file = "../data_transf_2022/df_NFe_2022_ncm_valida_2trans.Rda")
 
 # Remove tabelas
-remove(df_NFe_2022_raw,df_NFe_producao_transf)
+remove(df_NFe_2022_ncm_valida_1trans,df_NFe_2022_ncm_valida_2trans)
 ```
 
 #### Tratamento dos dados de CFOP para união com os dados da NFes
 ```{r tratamento dados de cfop}
 #Carregar dados de intresse
-load("data_raw_2022/df_NFe_cfop_lista_interesse_raw.Rda")
+load("../data_transf_2022/df_NFe_cfop_lista_interesse_raw.Rda")
 
-# Lista com campos originais da tabela df_NFe_cfop_lista_interesse_raw
-# df_NFe_cfop_lista_interesse_raw$CFOP
-# df_NFe_cfop_lista_interesse_raw$`DESCRIÇÃO_CFOP - Estimadores da Produção - lista da extração`
-# df_NFe_cfop_lista_interesse_raw$Excluir
-# df_NFe_cfop_lista_interesse_raw$`Estimador de Exportação`
-
-# novo dataframe e importação dos dados
-df_NFe_cfop_lista_interesse_tranf <- data_frame()
-
-# Renomeia dados e verificar qtd caracteres em cfop
+# novo dataframe, Renomeia dados e verificar qtd caracteres em cfop
 df_NFe_cfop_lista_interesse_tranf <- df_NFe_cfop_lista_interesse_raw %>%
-  rename("cfop" = "CFOP",
-         "descricao_cfop" = "DESCRIÇÃO_CFOP - Estimadores da Produção - lista da extração",
-         "excluir" = "Excluir",
-         "estimador_exportacao" = "Estimador de Exportação") %>%
+  rename("descricao_cfop" = "descricao_cfop_estimadores_da_producao_lista_da_extracao") %>%
   mutate(cfop = str_pad(string = cfop,
         width = 4,
         side = "left",
         pad = "0")) %>%
   mutate("cfop" = as.factor(cfop),
          "excluir" = as.factor(excluir),
-         "estimador_exportacao" = as.factor(estimador_exportacao))
+         "estimador_de_exportacao" = as.factor(estimador_de_exportacao))
 
 # Salva arquivo com dados transformados
-save(df_NFe_cfop_lista_interesse_tranf, file = "data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
+save(df_NFe_cfop_lista_interesse_tranf, file = "../data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
 
 # Remove tabelas
 remove(df_NFe_cfop_lista_interesse_raw, df_NFe_cfop_lista_interesse_tranf)
@@ -279,22 +261,22 @@ O final desse processo, a tabela resultante conterá apenas as informações nec
 ```{r unindo dados NFE e CFOP}
 
 #Carregar dados de intresse
-load("data_transf_2022/df_NFe_producao_transf.Rda")
-load("data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
+load("../data_transf_2022/df_NFe_2022_ncm_valida_2trans.Rda")
+load("../data_transf_2022/df_NFe_cfop_lista_interesse_tranf.Rda")
 
-# novo dataframe e importação dos dados
-df_NFe_producao_cfop_union <- data_frame()
-
-# União das tabelas
-df_NFe_producao_cfop_union <- left_join(df_NFe_producao_transf,
+# Novo dataframe e União das tabelas
+df_NFe_2022_ncm_valida_cfop_union_3trans <- left_join(df_NFe_2022_ncm_valida_2trans,
                                          df_NFe_cfop_lista_interesse_tranf,
                                          by = "cfop")
 
 # Salva arquivo com dados transformados
-save(df_NFe_producao_cfop_union, file = "data_transf_2022/df_NFe_producao_cfop_union.Rda")
+save(df_NFe_2022_ncm_valida_cfop_union_3trans, 
+     file = "../data_transf_2022/df_NFe_2022_ncm_valida_cfop_union_3trans.Rda")
 
 # Remove tabelas
-remove(df_NFe_producao_transf, df_NFe_cfop_lista_interesse_tranf, df_NFe_producao_cfop_union)
+remove(df_NFe_2022_ncm_valida_2trans, 
+       df_NFe_cfop_lista_interesse_tranf, 
+       df_NFe_2022_ncm_valida_cfop_union_3trans)
 ```
 
 #### Exclusão de CFOPs e finalização do tratamento dos dados da NFes
@@ -302,21 +284,18 @@ remove(df_NFe_producao_transf, df_NFe_cfop_lista_interesse_tranf, df_NFe_produca
 ```{r}
 
 #Carregar dados de intresse
-load("data_transf_2022/df_NFe_producao_cfop_union.Rda")
+load("../data_transf_2022/df_NFe_2022_ncm_valida_cfop_union_3trans.Rda")
 
-# novo dataframe e importação dos dados
-df_NFe_producao_cfop_ready <- data_frame()
-
-# filtar CFOPs a serrem excluídas
-df_NFe_producao_cfop_ready <- df_NFe_producao_cfop_union %>%
+#  novo dataframe e filtar CFOPs a serrem excluídas
+df_NFe_producao_ready <- df_NFe_2022_ncm_valida_cfop_union_3trans %>%
                                 filter(excluir == "Não") %>%
                                 select(!excluir)
 
 # Salva arquivo com dados transformados
-save(df_NFe_producao_cfop_ready, file = "data_ready_2022/df_NFe_producao_cfop_ready.Rda")
+save(df_NFe_producao_ready, file = "../data_ready_2022/df_NFe_producao_ready.Rda")
 
 # Remove tabelas
-remove(df_NFe_producao_cfop_union, df_NFe_producao_cfop_ready)
+remove(df_NFe_2022_ncm_valida_cfop_union_3trans, df_NFe_producao_ready)
 ```
 
 
@@ -333,24 +312,21 @@ Para essa parte do trabalho, será aproveitada a tabela "df_NFe_producao_cfop_un
 
 ```{r}
 #Carregar dados de intresse
-load("data_transf_2022/df_NFe_producao_cfop_union.Rda")
-
-# novo dataframe e importação dos dados
-df_NFe_export_ready <- data_frame()
+load("../data_transf_2022/df_NFe_2022_ncm_valida_cfop_union_3trans.Rda")
 
 # filtar CFOPs a serrem excluídas
-df_NFe_export_ready <- df_NFe_producao_cfop_union %>%
-                                filter(estimador_exportacao == "Sim") %>%
-                                select(!excluir & !estimador_exportacao) %>%
+df_NFe_export_ready <- df_NFe_2022_ncm_valida_cfop_union_3trans %>%
+                                filter(estimador_de_exportacao == "Sim") %>%
+                                select(!excluir & !estimador_de_exportacao) %>%
                                 rename("soma_qtd_emt_export" = "qtd_emit",
                                        "soma_valor_total_export" = "soma_valor_total_bruto_prod_serv",
                                        "soma_qtd_tributavel_export" = "soma_qtd_tributavel")
 
 # Salva arquivo com dados transformados
-save(df_NFe_export_ready, file = "data_ready_2022/df_NFe_export_ready.Rda")
+save(df_NFe_export_ready, file = "../data_ready_2022/df_NFe_export_ready.Rda")
 
 # Remove tabelas
-remove(df_NFe_producao_cfop_union, df_NFe_export_ready)
+remove(df_NFe_2022_ncm_valida_cfop_union_3trans, df_NFe_export_ready)
 ```
 
 
@@ -362,7 +338,7 @@ Os dados de importação são originários [Estatísticas de Comércio Exterior 
 ```{r}
 
 # novo dataframe e importação dos dados
-df_importacao_raw_1997_2022 <- fread("data_raw_2022/IMP_COMPLETA.csv") %>%
+df_importacao_raw_1997_2022 <- fread("../data_raw_2022/IMP_COMPLETA.csv") %>%
   janitor::clean_names() %>%
   tibble::as_tibble()
 
@@ -370,11 +346,8 @@ df_importacao_raw_1997_2022 <- fread("data_raw_2022/IMP_COMPLETA.csv") %>%
 df_importacao_raw_2016_2021 <- filter(df_importacao_raw_1997_2022, co_ano >= 2016 & co_ano <= 2021)
 
 # Salva arquivo com dados brutos 
-save(df_importacao_raw_1997_2022, file = "data_raw_2022/df_importacao_raw_1997_2022.Rda")
-save(df_importacao_raw_2016_2021, file = "data_raw_2022/df_importacao_raw_2016_2021.Rda")
-
-# Exportando tabela com resultado dos dados - Não foi possível executar essa linha por limitação do excel.
-# write_xlsx(df_NFe_2022_raw,"data_excel_2022/df_NFe_2022_raw.xlsx")
+save(df_importacao_raw_1997_2022, file = "../data_raw_2022/df_importacao_raw_1997_2022.Rda")
+save(df_importacao_raw_2016_2021, file = "../data_raw_2022/df_importacao_raw_2016_2021.Rda")
 
 # Remove arquivo da memória
 remove(df_importacao_raw_1997_2022, df_importacao_raw_2016_2021)
@@ -408,22 +381,21 @@ df_dolar_ipca_mensal_raw <- GetBCBData::gbcbd_get_series(
 df_dolar_ipca_mensal_raw <- as_tibble(df_dolar_ipca_mensal_raw)
 
 # Salva arquivo com dados brutos 
-save(df_dolar_ipca_mensal_raw, file = "data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
+save(df_dolar_ipca_mensal_raw, file = "../data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
 
 # Exportando tabela com resultado dos dados
-write_xlsx(df_dolar_ipca_mensal_raw,"data_excel_2022/df_dolar_ipca_mensal_raw.xlsx")
+write_xlsx(df_dolar_ipca_mensal_raw,"../data_excel_2022/df_dolar_ipca_mensal_raw.xlsx")
 
 # Remove arquivo da memória
 remove(df_dolar_ipca_mensal_raw)
 ```
 
-######################################################################################## 
 ### Tratamento dos dados de Importação
 
 Conversão dos tipos de variável e formatações básicas
 ```{r}
 # Carregar dados de intresse
-load("data_raw_2022/df_importacao_raw_2016_2021.Rda")
+load("../data_raw_2022/df_importacao_raw_2016_2021.Rda")
 
 # Adiciona zeros a esquerda ate completar oito caracteres na ncm
 df_importacao_transf_2016_2021<- df_importacao_raw_2016_2021 %>%
@@ -448,7 +420,7 @@ df_importacao_transf_2016_2021<- df_importacao_raw_2016_2021 %>%
   mutate(vl_cif = vl_fob + vl_frete + vl_seguro)
 
 # Salva arquivo com dados transformados 
-save(df_importacao_transf_2016_2021, file = "data_transf_2022/df_importacao_transf_2016_2021.Rda")
+save(df_importacao_transf_2016_2021, file = "../data_transf_2022/df_importacao_transf_2016_2021.Rda")
 
 # Remove tabelas
 remove(df_importacao_raw_2016_2021,df_importacao_transf_2016_2021)
@@ -457,17 +429,15 @@ remove(df_importacao_raw_2016_2021,df_importacao_transf_2016_2021)
 Acrescenta a conversão do Dólar para o Real
 ```{r}
 # Carregar dados de intresse
-load("data_transf_2022/df_importacao_transf_2016_2021.Rda")
-load("data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
+load("../data_transf_2022/df_importacao_transf_2016_2021.Rda")
+load("../data_raw_2022/df_dolar_ipca_mensal_raw.Rda")
 
 # retirando dados de ipca
-df_dolar_media_mensal_raw <- dplyr::select(df_dolar_ipca_mensal_raw, !c(ipca))
+#df_dolar_media_mensal_raw <- dplyr::select(df_dolar_ipca_mensal_raw, !c(ipca))
 
-                                           
-                                           
 # União das tabelas df_NFe_2022_raw e lista_ncm_validas
 df_importacao_transf_REAL_2016_2021 <- left_join(df_importacao_transf_2016_2021,
-                             df_dolar_media_mensal_raw,
+                             df_dolar_ipca_mensal_raw,
                              by = c("ano_mes" = "ref_date"))
 
 # Converte valores em dolar para real
@@ -479,11 +449,10 @@ df_importacao_transf_REAL_2016_2021 <- df_importacao_transf_REAL_2016_2021 %>%
           vl_cif_real    = vl_cif * dolar)
 
 # Salva arquivo com dados transformados 
-save(df_importacao_transf_REAL_2016_2021, file = "data_transf_2022/df_importacao_transf_REAL_2016_2021")
+save(df_importacao_transf_REAL_2016_2021, file = "../data_transf_2022/df_importacao_transf_REAL_2016_2021.Rda")
 
 # Remove tabelas
 remove(df_dolar_ipca_mensal_raw, 
-       df_dolar_media_mensal_raw,
        df_importacao_transf_2016_2021, 
        df_importacao_transf_REAL_2016_2021)
 ```
@@ -520,15 +489,12 @@ A planilha excel resultante da análise de Produção Nacional está denominada 
 
 ```{r agrupamento dados producao por NCM}
 
-#Carregar dados de intresse
-load("data_ready_2022/df_NFe_producao_cfop_ready.Rda")
-
-# novo dataframe e importação dos dados
-df_NFe_producao_group_NCM <- data_frame()
-
-# Agrupamento e sumarização dos dados de produção
-df_NFe_producao_group_NCM <- df_NFe_producao_cfop_ready %>% 
-  select(!mes & !cfop & !ano_mes & !descricao_cfop & !estimador_exportacao) %>%
+# Carregar dados de intresse
+load("../data_ready_2022/df_NFe_producao_ready.Rda")
+names(df_NFe_producao_ready)
+# Novo dataframe, Agrupamento e sumarização dos dados de produção
+df_NFe_producao_group_NCM <- df_NFe_producao_ready %>% 
+  select(!c(mes, cfop, ano_mes, descricao_cfop, estimador_de_exportacao)) %>%
   group_by(ncm, ano) %>%
   summarise(sum_qtd_emt = sum(qtd_emit),
             sum_soma_valor_total_bruto_prod_serv = sum(soma_valor_total_bruto_prod_serv),
@@ -551,13 +517,13 @@ df_NFe_producao_group_NCM <- df_NFe_producao_group_NCM %>%
 
 
 # Salva arquivo com dados brutos 
-save(df_NFe_producao_group_NCM, file = "data_ready_2022/df_NFe_producao_group_NCM.Rda")
+save(df_NFe_producao_group_NCM, file = "../data_ready_2022/df_NFe_producao_group_NCM.Rda")
 
 # Exportando tabela com resultado dos dados
-write_xlsx(df_NFe_producao_group_NCM,"data_excel_2022/df_NFe_producao_group_NCM_v02.xlsx")
+write_xlsx(df_NFe_producao_group_NCM,"../data_excel_2022/df_NFe_producao_group_NCM_v02.xlsx")
 
 # Remove arquivo da memória
-remove(df_NFe_producao_cfop_ready, df_NFe_producao_group_NCM)
+remove(df_NFe_producao_ready, df_NFe_producao_group_NCM)
 ```
 
 
@@ -567,10 +533,7 @@ remove(df_NFe_producao_cfop_ready, df_NFe_producao_group_NCM)
 
 ```{r}
 #Carregar dados de intresse
-load("data_ready_2022/df_NFe_export_ready.Rda")
-
-# novo dataframe e importação dos dados
-df_NFe_export_presentation <- data_frame()
+load("../data_ready_2022/df_NFe_export_ready.Rda")
 
 # Agrupamento e sumarização dos dados de exportação
 df_NFe_export_presentation <- df_NFe_export_ready %>% 
@@ -597,10 +560,10 @@ df_NFe_export_presentation <- df_NFe_export_presentation %>%
 
 
 # Salva arquivo com dados brutos 
-save(df_NFe_export_presentation, file = "data_ready_2022/df_NFe_export_presentation.Rda")
+save(df_NFe_export_presentation, file = "../data_ready_2022/df_NFe_export_presentation.Rda")
 
 # Exportando tabela com resultado dos dados
-write_xlsx(df_NFe_export_presentation,"data_excel_2022/df_NFe_export_presentation_v03.xlsx")
+write_xlsx(df_NFe_export_presentation,"../data_excel_2022/df_NFe_export_presentation_v03.xlsx")
 
 # Remove arquivo da memória
 remove(df_NFe_export_ready, df_NFe_export_presentation)
