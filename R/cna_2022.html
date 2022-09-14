@@ -1515,7 +1515,7 @@ div.tocify {
 <h3 class="subtitle">Estimativa de vendas da produção nacional por
 código da Nomenclatura Comum do Mercosul – NCM. Estatísticas construídas
 a partir de Notas Fiscais Eletrônicas. Período 2016-2021.</h3>
-<h4 class="date">29 de agosto de 2022</h4>
+<h4 class="date">08 de setembro de 2022</h4>
 
 </div>
 
@@ -1629,8 +1629,7 @@ CFOPs</h4>
 <h5><span class="header-section-number">3.1.1.1.1</span> Importação das
 Tabelas NFEs disponibilizadas em 2022</h5>
 <p>Carga e empilhamento das tabelas contendo NFes.</p>
-<pre class="r"><code>tic()
-# dados da NFe oriundos da Receita Federal
+<pre class="r"><code># dados da NFe oriundos da Receita Federal
 arquivos &lt;- c(&quot;../data_raw_2022/soliciti_9992_secint_2016.csv&quot;,
               &quot;../data_raw_2022/soliciti_9992_secint_2017.csv&quot;,
               &quot;../data_raw_2022/soliciti_9992_secint_2018.csv&quot;,
@@ -1657,9 +1656,7 @@ save(df_NFe_2022_raw, file = &quot;../data_transf_2022/df_NFe_2022_raw.Rda&quot;
 # write_xlsx(df_NFe_2022_raw,&quot;data_excel_2022/df_NFe_2022_raw.xlsx&quot;)
 
 # Remove arquivo da memória
-remove(df_NFe_2022_raw, arquivos, i)
-toc()</code></pre>
-<pre><code>## 41.83 sec elapsed</code></pre>
+remove(df_NFe_2022_raw, arquivos, i)</code></pre>
 </div>
 <div id="importação-da-tabela-lista-de-cfop-de-interesse-2021" class="section level5" number="3.1.1.1.2">
 <h5><span class="header-section-number">3.1.1.1.2</span> Importação da
@@ -1693,17 +1690,48 @@ tabela de NFes</h4>
 <p>O primeiro tratamento realizado é a união das NCMs inválidas sob uma
 única NCM “00000000”. Assim é possível manter o histórico de NCMs
 inválidas sem poluir a análise dos dados.</p>
-<pre class="r"><code># Carregar dados de intresse
-lista_ncm_validas &lt;- read_excel(&quot;../data_raw_2022/Lista_NCM_Validas.xlsx&quot;)
-load(&quot;../data_transf_2022/df_NFe_2022_raw.Rda&quot;)
+<p>Objetivando aprimorar o análise a partir de uma lista mais atualizada
+de NCMs, optou-se por unir a lista de NCMs utilizadas na CNA de 2021 com
+a lista disponibilizada em:<a href="https://www.gov.br/produtividade-e-comercio-exterior/pt-br/assuntos/comercio-exterior/estatisticas/base-de-dados-bruta">Estatísticas
+de Comércio Exterior em Dados Abertos</a>. O link direto para a base é:
+<a href="https://balanca.economia.gov.br/balanca/bd/tabelas/NCM.csv">NCM</a>.</p>
+<pre class="r"><code># Carregar lista de NCMs do Comexstat
+lista_ncms_comexstat &lt;- read_csv2(&quot;../data_raw_2022/NCM.csv&quot;) %&gt;%
+  janitor::clean_names() %&gt;%
+  tibble::as_tibble() %&gt;%
+  select(co_ncm) %&gt;%
+  rename(&quot;ncm&quot; = &quot;co_ncm&quot;) %&gt;%
+  mutate(&quot;valida&quot; = &quot;sim&quot;)</code></pre>
+<pre><code>## ℹ Using &quot;&#39;,&#39;&quot; as decimal and &quot;&#39;.&#39;&quot; as grouping mark. Use `read_delim()` for more control.</code></pre>
+<pre><code>## Rows: 13568 Columns: 14
+## ── Column specification ────────────────────────────────────────────────────────
+## Delimiter: &quot;;&quot;
+## chr (9): CO_NCM, CO_SH6, CO_FAT_AGREG, CO_CUCI_ITEM, CO_ISIC_CLASSE, CO_EXP_...
+## dbl (5): CO_UNID, CO_PPE, CO_PPI, CO_CGCE_N3, CO_SIIT
+## 
+## ℹ Use `spec()` to retrieve the full column specification for this data.
+## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.</code></pre>
+<pre class="r"><code># Carregal lista de NCMs usadas na construção da CNA de 2021
+lista_ncm_cna_2020 &lt;- read_excel(&quot;../data_raw_2022/Lista_NCM_Validas.xlsx&quot;) %&gt;%
+  janitor::clean_names() %&gt;%
+  tibble::as_tibble()
 
-# RETIRAR??? # Altera tipo de variável
-# lista_ncm_validas &lt;- lista_ncm_validas %&gt;%
-#   #mutate(ncm = as.integer(ncm))
+# Empilha as duas listas e remove as duplicadas
+df_lista_NCM_validas_compilada &lt;- rbind(lista_ncms_comexstat, lista_ncm_cna_2020) %&gt;%
+  distinct(ncm, .keep_all = TRUE)
+
+# Salva arquivo com dados brutos 
+save(df_lista_NCM_validas_compilada, file = &quot;../data_raw_2022/df_lista_NCM_validas_compilada.Rda&quot;)
+
+# Remove tabelas
+remove(lista_ncms_comexstat,lista_ncm_cna_2020, df_lista_NCM_validas_compilada)</code></pre>
+<pre class="r"><code># Carregar dados de intresse
+load(&quot;../data_raw_2022/df_lista_NCM_validas_compilada.Rda&quot;)
+load(&quot;../data_transf_2022/df_NFe_2022_raw.Rda&quot;)
 
 # União das tabelas df_NFe_2022_raw e lista_ncm_validas
 df_NFe_2022_ncm_valida_1trans &lt;- left_join(df_NFe_2022_raw,
-                             lista_ncm_validas,
+                             df_lista_NCM_validas_compilada,
                              by = &quot;ncm&quot;)
 
 # separação de linhas com ncms válidas
@@ -1724,7 +1752,7 @@ df_NFe_2022_ncm_valida_1trans &lt;- rbind(df_NFe_2022_ncm_valida,df_NFe_2022_ncm
 save(df_NFe_2022_ncm_valida_1trans, file = &quot;../data_transf_2022/df_NFe_2022_ncm_valida_1trans.Rda&quot;)
 
 # Remove tabelas
-remove(lista_ncm_validas, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida, df_NFe_2022_raw)</code></pre>
+remove(df_lista_NCM_validas_compilada, df_NFe_2022_ncm_valida_1trans, df_NFe_2022_ncm_valida,df_NFe_2022_ncm_invalida, df_NFe_2022_raw)</code></pre>
 <p>Em seguida, passasse ao tratamento dos dados da NFe para posterior
 consumo pelos painéis e analistas.</p>
 <pre class="r"><code>#Carregar dados de intresse
@@ -1962,7 +1990,14 @@ df_importacao_transf_2016_2021&lt;- df_importacao_raw_2016_2021 %&gt;%
           vl_frete = as.double(vl_frete),
           vl_seguro = as.double(vl_seguro)) %&gt;%
   mutate(ano_mes = as.Date(paste0(co_ano, &quot;-&quot;, co_mes, &quot;-&quot;, &quot;01&quot;))) %&gt;%
-  mutate(vl_cif = vl_fob + vl_frete + vl_seguro)
+  mutate(vl_cif = vl_fob + vl_frete + vl_seguro) %&gt;%
+  rename(&quot;ano&quot; = &quot;co_ano&quot;,
+         &quot;mes&quot; = &quot;co_mes&quot;,
+         &quot;ncm&quot; = &quot;co_ncm&quot;,
+         &quot;unid&quot; = &quot;co_unid&quot;,
+         &quot;pais&quot; = &quot;co_pais&quot;,
+         &quot;via&quot; = &quot;co_via&quot;,
+         &quot;urf&quot; = &quot;co_urf&quot;)
 
 # Salva arquivo com dados transformados 
 save(df_importacao_transf_2016_2021, file = &quot;../data_transf_2022/df_importacao_transf_2016_2021.Rda&quot;)
@@ -2061,6 +2096,8 @@ df_NFe_producao_group_NCM &lt;- df_NFe_producao_group_NCM %&gt;%
   mutate(preco_medio = sum_soma_valor_total_bruto_prod_serv / sum_soma_qtd_tributavel) #%&gt;%
   #mutate(preco_medio = (format(round(preco_medio, 2), nsmall = 2, decimal.mark = &quot;,&quot;))) %&gt;%
   
+# Salva arquivo resultante
+save(df_NFe_producao_group_NCM, file = &quot;../data_ready_2022/df_NFe_producao_group_NCM.Rda&quot;)
 
 # Renomear colunas para apresentar
 df_NFe_producao_group_NCM &lt;- df_NFe_producao_group_NCM %&gt;%
@@ -2071,9 +2108,6 @@ df_NFe_producao_group_NCM &lt;- df_NFe_producao_group_NCM %&gt;%
          &quot;Qtde Tributável&quot; = &quot;sum_soma_qtd_tributavel&quot;,
          &quot;Preço Médio&quot; = &quot;preco_medio&quot;)
 
-
-# Salva arquivo com dados brutos 
-save(df_NFe_producao_group_NCM, file = &quot;../data_ready_2022/df_NFe_producao_group_NCM.Rda&quot;)
 
 # Exportando tabela com resultado dos dados
 write_xlsx(df_NFe_producao_group_NCM,&quot;../data_excel_2022/df_NFe_producao_group_NCM_v02.xlsx&quot;)
@@ -2092,29 +2126,27 @@ load(&quot;../data_ready_2022/df_NFe_export_ready.Rda&quot;)
 df_NFe_export_presentation &lt;- df_NFe_export_ready %&gt;% 
   select(!mes &amp; !cfop &amp; !ano_mes &amp; !descricao_cfop) %&gt;%
   group_by(ncm, ano) %&gt;%
-  summarise(sum_qtd_emt = sum(soma_qtd_emt_export),
-            sum_soma_valor_total_bruto_prod_serv = sum(soma_valor_total_export),
-            sum_soma_qtd_tributavel = sum(soma_qtd_tributavel_export))</code></pre>
+  summarise(soma_qtd_emt_export = sum(soma_qtd_emt_export),
+            soma_valor_total_export = sum(soma_valor_total_export),
+            soma_qtd_tributavel_export = sum(soma_qtd_tributavel_export))</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;ncm&#39;. You can override using the `.groups`
 ## argument.</code></pre>
 <pre class="r"><code># Cálculo do Preço Médio &gt;&gt;NÃO CONSEGUI TRANFORMAR O PREÇO MÉDIO EM NUMÉRICO&lt;&lt;&lt;
 df_NFe_export_presentation &lt;- df_NFe_export_presentation %&gt;%
-  mutate(preco_medio = sum_soma_valor_total_bruto_prod_serv / sum_soma_qtd_tributavel) #%&gt;%
-  #mutate(preco_medio = (format(round(preco_medio, 2), nsmall = 2, decimal.mark = &quot;,&quot;))) %&gt;%
-  
+  mutate(preco_medio_export = soma_valor_total_export / soma_qtd_tributavel_export) #%&gt;%
+
+# Salva arquivo resultante 
+save(df_NFe_export_presentation, file = &quot;../data_ready_2022/df_NFe_export_presentation.Rda&quot;)
 
 # Renomear colunas para apresentar
 df_NFe_export_presentation &lt;- df_NFe_export_presentation %&gt;%
   rename(&quot;NCM&quot; = &quot;ncm&quot;,
          &quot;Ano&quot; = &quot;ano&quot;,
-         &quot;Qtde Emitida Exportada&quot; = &quot;sum_qtd_emt&quot;,
-         &quot;Valor Total Bruto Exportado&quot; = &quot;sum_soma_valor_total_bruto_prod_serv&quot;,
-         &quot;Qtde Tributável Exportada&quot; = &quot;sum_soma_qtd_tributavel&quot;,
-         &quot;Preço Médio Exportação&quot; = &quot;preco_medio&quot;)
+         &quot;Qtde Emitida Exportada&quot; = &quot;soma_qtd_emt_export&quot;,
+         &quot;Valor Total Bruto Exportado&quot; = &quot;soma_valor_total_export&quot;,
+         &quot;Qtde Tributável Exportada&quot; = &quot;soma_qtd_tributavel_export&quot;,
+         &quot;Preço Médio Exportação&quot; = &quot;preco_medio_export&quot;)
 
-
-# Salva arquivo com dados brutos 
-save(df_NFe_export_presentation, file = &quot;../data_ready_2022/df_NFe_export_presentation.Rda&quot;)
 
 # Exportando tabela com resultado dos dados
 write_xlsx(df_NFe_export_presentation,&quot;../data_excel_2022/df_NFe_export_presentation_v03.xlsx&quot;)
@@ -2125,7 +2157,46 @@ remove(df_NFe_export_ready, df_NFe_export_presentation)</code></pre>
 <div id="informações-sobre-a-importação-nacional" class="section level2" number="5.3">
 <h2><span class="header-section-number">5.3</span> Informações sobre a
 Importação Nacional</h2>
-<p><sup><code>versão 0.4 - dados de importação</code></sup></p>
+<p><sup><code>versão 0.4 - dados de importação</code></sup>
+###########</p>
+<pre class="r"><code># Carregar dados de intresse
+load(&quot;../data_transf_2022/df_importacao_transf_REAL_2016_2021.Rda&quot;)
+
+# Agrupamento e sumarização dos dados de importação
+df_NFe_import_presentation &lt;- df_importacao_transf_REAL_2016_2021 %&gt;% 
+  select(!c(mes, unid, pais, sg_uf_ncm, via, urf, qt_estat, kg_liquido, 
+            vl_frete, vl_seguro,ano_mes, dolar, ipca, vl_frete_real, vl_seguro_real)) %&gt;%
+  group_by(ncm, ano) %&gt;%
+  summarise(vl_fob = sum(vl_fob),
+            vl_cif = sum(vl_cif),
+            vl_fob_real = sum(vl_fob_real),
+            vl_cif_real = sum(vl_cif_real))</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;ncm&#39;. You can override using the `.groups`
+## argument.</code></pre>
+<pre class="r"><code># Sem preço médio para importação 
+# Cálculo do Preço Médio &gt;&gt;NÃO CONSEGUI TRANFORMAR O PREÇO MÉDIO EM NUMÉRICO&lt;&lt;&lt;
+# df_NFe_import_presentation &lt;- df_NFe_import_presentation %&gt;%
+# mutate(preco_medio = sum_soma_valor_total_bruto_prod_serv / sum_soma_qtd_tributavel) #%&gt;%
+# mutate(preco_medio = (format(round(preco_medio, 2), nsmall = 2, decimal.mark = &quot;,&quot;))) %&gt;%
+
+# Salva arquivo resultante 
+save(df_NFe_import_presentation, file = &quot;../data_ready_2022/df_NFe_import_presentation.Rda&quot;)
+  
+# Renomear colunas para apresentar
+df_NFe_import_presentation &lt;- df_NFe_import_presentation %&gt;%
+  rename(&quot;NCM&quot; = &quot;ncm&quot;,
+         &quot;Ano&quot; = &quot;ano&quot;,
+         &quot;Valor FOB em Dólar&quot; = &quot;vl_fob&quot;,
+         &quot;Valor CIF em Dólar&quot; = &quot;vl_cif&quot;,
+         &quot;Valor FOB em Real&quot; = &quot;vl_fob_real&quot;,
+         &quot;Valor CIF em Real&quot; = &quot;vl_cif_real&quot;)
+
+
+# Exportando tabela com resultado dos dados
+write_xlsx(df_NFe_import_presentation,&quot;../data_excel_2022/df_NFe_import_presentation_v04.xlsx&quot;)
+
+# Remove arquivo da memória
+remove(df_importacao_transf_REAL_2016_2021, df_NFe_import_presentation)</code></pre>
 </div>
 <div id="informações-sobre-os-dados-auxiliares---câmbio-e-ipca" class="section level2" number="5.4">
 <h2><span class="header-section-number">5.4</span> Informações sobre os
@@ -2137,6 +2208,66 @@ dados auxiliares - Câmbio e IPCA</h2>
 <h2><span class="header-section-number">5.5</span> Informações
 resultantes da união das tabelas</h2>
 <p><sup><code>versão 1.0 - evolução na análise</code></sup></p>
+<pre class="r"><code>###################### Continuar aqui 
+# acontece porque tem o mesmo nome das duas tabelas, ou alterar o join ou excluo as
+
+load(&quot;../data_ready_2022/df_NFe_producao_group_NCM.Rda&quot;)
+load(&quot;../data_ready_2022/df_NFe_export_presentation.Rda&quot;)
+load(&quot;../data_ready_2022/df_NFe_import_presentation.Rda&quot;)
+
+df_producao_import &lt;- full_join(df_NFe_producao_group_NCM, df_NFe_import_presentation, by = c(&quot;ncm&quot;, &quot;ano&quot;))
+df_producao_import_export &lt;- full_join(df_producao_import, df_NFe_export_presentation, by = c(&quot;ncm&quot;, &quot;ano&quot;))
+
+df_producao_import_export &lt;- df_producao_import_export %&gt;%
+ mutate(cna = sum_soma_valor_total_bruto_prod_serv + 
+              vl_cif_real - 
+              soma_valor_total_export,
+        coef_penetracao_import = vl_cif_real / cna,
+        coef_exportacao = soma_valor_total_export / cna)
+#
+# Salva arquivo resultante 
+save(df_NFe_import_presentation, file = &quot;../data_ready_2022/df_producao_import_export.Rda&quot;)
+  
+# Renomear colunas para apresentar
+df_producao_import_export &lt;- df_producao_import_export %&gt;%
+  rename(&quot;NCM&quot; = &quot;ncm&quot;,
+         &quot;Ano&quot; = &quot;ano&quot;,
+         &quot;Qtde Emitida&quot; = &quot;sum_qtd_emt&quot;,
+         &quot;Valor Total Bruto de Produção e Serviço&quot; = &quot;sum_soma_valor_total_bruto_prod_serv&quot;,
+         &quot;Qtde Tributável&quot; = &quot;sum_soma_qtd_tributavel&quot;,
+         &quot;Preço Médio&quot; = &quot;preco_medio&quot;,
+         &quot;Valor FOB em Dólar&quot; = &quot;vl_fob&quot;,
+         &quot;Valor CIF em Dólar&quot; = &quot;vl_cif&quot;,
+         &quot;Valor FOB em Real&quot; = &quot;vl_fob_real&quot;,
+         &quot;Valor CIF em Real&quot; = &quot;vl_cif_real&quot;,
+         &quot;Qtde Emitida Exportada&quot; = &quot;soma_qtd_emt_export&quot;,
+         &quot;Valor Total Bruto Exportado&quot; = &quot;soma_valor_total_export&quot;,
+         &quot;Qtde Tributável Exportada&quot; = &quot;soma_qtd_tributavel_export&quot;,
+         &quot;Preço Médio Exportação&quot; = &quot;preco_medio_export&quot;,
+         &quot;Consumo Nacional Aparente&quot; = &quot;cna&quot;,
+         &quot;Coeficiente de Penetração de Importação&quot; = &quot;coef_penetracao_import&quot;,
+         &quot;Coeficiente de Exportação&quot; = &quot;coef_exportacao&quot;)
+
+names(df_producao_import_export)</code></pre>
+<pre><code>##  [1] &quot;NCM&quot;                                    
+##  [2] &quot;Ano&quot;                                    
+##  [3] &quot;Qtde Emitida&quot;                           
+##  [4] &quot;Valor Total Bruto de Produção e Serviço&quot;
+##  [5] &quot;Qtde Tributável&quot;                        
+##  [6] &quot;Preço Médio&quot;                            
+##  [7] &quot;Valor FOB em Dólar&quot;                     
+##  [8] &quot;Valor CIF em Dólar&quot;                     
+##  [9] &quot;Valor FOB em Real&quot;                      
+## [10] &quot;Valor CIF em Real&quot;                      
+## [11] &quot;Qtde Emitida Exportada&quot;                 
+## [12] &quot;Valor Total Bruto Exportado&quot;            
+## [13] &quot;Qtde Tributável Exportada&quot;              
+## [14] &quot;Preço Médio Exportação&quot;                 
+## [15] &quot;Consumo Nacional Aparente&quot;              
+## [16] &quot;Coeficiente de Penetração de Importação&quot;
+## [17] &quot;Coeficiente de Exportação&quot;</code></pre>
+<pre class="r"><code># Exportando tabela com resultado dos dados
+write_xlsx(df_producao_import_export,&quot;../data_excel_2022/df_producao_import_export.xlsx&quot;)</code></pre>
 </div>
 </div>
 <div id="evoluções-na-análise" class="section level1" number="6">
